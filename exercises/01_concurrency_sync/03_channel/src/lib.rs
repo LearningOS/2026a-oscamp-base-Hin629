@@ -14,11 +14,26 @@ use std::thread;
 /// Create a producer thread that sends each element from items into the channel.
 /// The main thread receives all messages and returns them.
 pub fn simple_send_recv(items: Vec<String>) -> Vec<String> {
-    // TODO: Create channel
-    // TODO: Spawn thread to send each element in items
-    // TODO: In main thread, receive all messages and collect into Vec
+    // : Create channel
+    let (se, re) = mpsc::channel();
+    // : Spawn thread to send each element in items
+    let th = thread::spawn(move || {
+        for s in items {
+            se.send(s).unwrap();
+        }
+        drop(se);
+    });
+    th.join().unwrap();
+    // : In main thread, receive all messages and collect into Vec
+    let mut res = Vec::new();
+    loop {
+        match  re.recv() {
+            Ok(a) => res.push(a),
+            Err(_) => break
+        }
+    }
     // Hint: When all Senders are dropped, recv() returns Err
-    todo!()
+    res
 }
 
 /// Create `n_producers` producer threads, each sending a message in format `"msg from {id}"`.
@@ -26,11 +41,37 @@ pub fn simple_send_recv(items: Vec<String>) -> Vec<String> {
 ///
 /// Hint: Use `tx.clone()` to create multiple senders. Note that the original tx must also be dropped.
 pub fn multi_producer(n_producers: usize) -> Vec<String> {
-    // TODO: Create channel
-    // TODO: Clone a sender for each producer
-    // TODO: Remember to drop the original sender, otherwise receiver won't finish
-    // TODO: Collect all messages and sort
-    todo!()
+    // : Create channel
+    let (se, re) = mpsc::channel();
+    // : Clone a sender for each producer
+    let mut th_ve = Vec::new();
+    for i in 0..n_producers {
+        let each_send = se.clone();
+        th_ve.push(
+            thread::spawn(move || {
+                    each_send.send(format!("msg from {}",i)).unwrap();
+                    drop(each_send);
+                }
+            )
+        );
+        
+    }
+    
+    for it in th_ve {
+        it.join().unwrap();
+    }
+    // : Remember to drop the original sender, otherwise receiver won't finish
+    drop(se);
+    // : Collect all messages and sort
+    let mut res = Vec::new();
+    loop {
+        match re.recv() {
+            Ok(s) => res.push(s),
+            Err(_) => break
+        }
+    }
+    res.sort();
+    res
 }
 
 #[cfg(test)]
